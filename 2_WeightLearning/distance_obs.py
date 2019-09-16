@@ -13,7 +13,7 @@ from flatland.envs.schedule_generators import complex_schedule_generator
 from flatland.utils.rendertools import RenderTool
 
 from abel_agent import AbelAgent
-
+import json
 # random.seed(100)
 np.random.seed(100)
 
@@ -50,7 +50,7 @@ class CustomWeightObserver(TreeObsForRailEnv):
                 current = weights[index]
                 if possible_transitions[direction]:
                     new_position = self._new_position(agent.position, direction)
-                    current['distance_to_goal'] = self.distance_map[handle, new_position[0], new_position[1], direction]
+                    current['distance_to_goal'] = self.distance_map[handle, new_position[0], new_position[1], direction] / 100
                 else:
                     current['valid'] = False
                     current['distance_to_goal'] = np.inf
@@ -69,7 +69,7 @@ env = RailEnv(width=20,
 env_renderer = RenderTool(env, gl="PILSVG")
 
 agent = AbelAgent(218, 5)
-n_trials = 5
+n_trials = 50
 
 for trials in range(1, n_trials + 1):
     # Reset Environment
@@ -79,14 +79,35 @@ for trials in range(1, n_trials + 1):
     score = 0
 
     # Run Episode
-    for step in range(1000):
+    for step in range(100):
         action = agent.act(obs[0])
-        obs, all_rewards, done, _ = env.step({0: action})
-        agent.step((obs[0], all_rewards[0], done[0]))
+        next_obs, all_rewards, done, _ = env.step({0: action})
+        score+=all_rewards[0]
+        agent.step((obs[0], next_obs[0], action, all_rewards[0], done[0]))
+        obs = next_obs.copy()
         env_renderer.render_env(show=True, frames=True, show_observations=True)
         time.sleep(0.1)
         if done["__all__"]:
             break
 
+    agent.reset()
+
     print(f'Episode Nr. {trials}\t Score = {score}')
+
+    # Update Metadata
+    #   Read Data
+    data = {}
+    with open("weights.json", "r") as read_file:
+        data = json.load(read_file)
+
+    data['trials'] += 1
+    #   Write Data
+
+    with open('weights.json', 'w') as f:
+        json.dump(data, f)
+
+    # Update Score Log
+    f = open("scores.txt", "a+")
+    f.write(str(score) + "\n")
+
 env_renderer.close_window()
